@@ -43,7 +43,6 @@ def _patch_engine_scaffold(
     settings = types.SimpleNamespace(
         llm=types.SimpleNamespace(
             model="openai/gpt-4o",
-            auth_mode="api_key",
             reasoning_effort="high",
             force_required_tool_choice=False,
             timeout=300,

@@ -128,7 +128,6 @@ def make_model_settings(
     model_name: str,
     force_required_tool_choice: bool = False,
     request_timeout: float | None = None,
-    codex_subscription: bool = False,
 ) -> ModelSettings:
     model_settings = ModelSettings(
         parallel_tool_calls=False,
@@ -136,16 +135,10 @@ def make_model_settings(
         include_usage=True,
         extra_args=request_timeout_extra_args(request_timeout),
     )
-    if codex_subscription:
-        # The ChatGPT Codex backend is stateless: it requires store=false and
-        # carries reasoning context forward via encrypted reasoning content
-        # replayed in the input rather than server-side state.
-        model_settings = model_settings.resolve(
-            ModelSettings(store=False, response_include=["reasoning.encrypted_content"]),
-        )
-    reasoning_effort = _resolve_reasoning_effort(reasoning_effort, codex_subscription)
-    if reasoning_effort is not None and (
-        codex_subscription or model_supports_reasoning(model_name)
+    if (
+        reasoning_effort is not None
+        and reasoning_effort != "none"
+        and model_supports_reasoning(model_name)
     ):
         model_settings = model_settings.resolve(
             ModelSettings(reasoning=Reasoning(effort=reasoning_effort)),
@@ -153,25 +146,6 @@ def make_model_settings(
     if force_required_tool_choice and _accepts_required_tool_choice(model_name):
         model_settings = model_settings.resolve(ModelSettings(tool_choice="required"))
     return model_settings
-
-
-def _resolve_reasoning_effort(
-    reasoning_effort: ReasoningEffort | None, codex_subscription: bool
-) -> ReasoningEffort | None:
-    """Normalize the configured effort, clamping to what the Codex backend accepts.
-
-    The ChatGPT Codex backend rejects ``minimal`` and only some models accept
-    ``xhigh``; both are clamped rather than passed through, so a valid Strix
-    config doesn't fail at the provider.
-    """
-    if reasoning_effort is None or reasoning_effort == "none":
-        return None
-    if codex_subscription:
-        if reasoning_effort == "minimal":
-            return "low"
-        if reasoning_effort == "xhigh":
-            return "high"
-    return reasoning_effort
 
 
 def child_initial_input(

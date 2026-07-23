@@ -63,6 +63,9 @@ def _response_payload() -> dict[str, Any]:
     }
 
 
+_CAPTURED: dict[str, Any] = {}
+
+
 class _Handler(BaseHTTPRequestHandler):
     def log_message(self, *args: Any) -> None:
         pass
@@ -70,6 +73,8 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length) or b"{}")
+        _CAPTURED.clear()
+        _CAPTURED.update(body)
         if not body.get("stream"):
             payload = json.dumps({"detail": "Stream must be set to true"}).encode()
             self.send_response(400)
@@ -136,3 +141,21 @@ async def test_codex_model_streams_and_aggregates(backend_url: str) -> None:
     response = await model.get_response(**_call_kwargs())
     assert response.output[0].content[0].text == "OK"
     assert response.usage.total_tokens == 2
+
+
+@pytest.mark.asyncio
+async def test_codex_model_self_enforces_backend_requirements(backend_url: str) -> None:
+    # The caller passes ordinary settings; the model must impose the backend's
+    # requirements (stream, store=false, encrypted reasoning) and the configured
+    # reasoning effort itself.
+    model = _CodexResponsesModel(
+        model="gpt-5.4", openai_client=_client(backend_url), reasoning_effort="high"
+    )
+    kwargs = _call_kwargs()
+    kwargs["model_settings"] = ModelSettings()  # nothing special from the caller
+    await model.get_response(**kwargs)
+
+    assert _CAPTURED["stream"] is True
+    assert _CAPTURED["store"] is False
+    assert _CAPTURED["include"] == ["reasoning.encrypted_content"]
+    assert _CAPTURED["reasoning"] == {"effort": "high"}

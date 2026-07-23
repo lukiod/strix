@@ -148,14 +148,7 @@ async def run_strix_scan(
 
     settings = load_settings()
     configure_sdk_model_defaults(settings)
-    codex_subscription = settings.llm.auth_mode == "subscription"
     resolved_model = (model or settings.llm.model or "").strip()
-    if codex_subscription:
-        # Map whatever is configured to a name the ChatGPT Codex backend accepts,
-        # so a stray STRIX_LLM value can't send an unsupported model.
-        from strix.auth import codex
-
-        resolved_model = codex.normalize_model(resolved_model)
     if not resolved_model:
         raise RuntimeError(
             "No LLM model configured. Set STRIX_LLM env or pass model= to run_strix_scan().",
@@ -223,7 +216,6 @@ async def run_strix_scan(
             model_name=resolved_model,
             force_required_tool_choice=settings.llm.force_required_tool_choice,
             request_timeout=settings.llm.timeout,
-            codex_subscription=codex_subscription,
         )
         run_config = RunConfig(
             model=resolved_model,

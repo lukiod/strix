@@ -69,36 +69,25 @@ def test_parse_redirect_input(value: str, expected: tuple[str | None, str | None
 @pytest.mark.parametrize(
     ("model", "expected"),
     [
-        ("openai/gpt-5.5", "gpt-5.5"),
-        ("gpt-5.4", "gpt-5.4"),
-        # A configured-but-unlisted OpenAI/bare name is passed through; the backend validates.
-        ("openai/gpt-5.6", "gpt-5.6"),
-        # Another provider can't be served by a ChatGPT subscription → coerced to default.
-        ("anthropic/claude-opus-4-8", codex.DEFAULT_CODEX_MODEL),
-        ("deepseek/deepseek-v4-pro", codex.DEFAULT_CODEX_MODEL),
-        ("vertex_ai/gemini-3-pro", codex.DEFAULT_CODEX_MODEL),
-        (None, codex.DEFAULT_CODEX_MODEL),
-        ("", codex.DEFAULT_CODEX_MODEL),
-    ],
-)
-def test_normalize_model(model: str | None, expected: str) -> None:
-    assert codex.normalize_model(model) == expected
-
-
-@pytest.mark.parametrize(
-    ("model", "compatible"),
-    [
-        ("openai/gpt-5.5", True),
-        ("gpt-5.4", True),
-        ("gpt-5.1-codex", True),  # bare name: backend is the authority
+        ("openai/subscription", True),
+        ("OpenAI/Subscription", True),  # case-insensitive
+        ("  openai/subscription  ", True),  # surrounding whitespace
+        ("openai/gpt-5.4", False),
         ("anthropic/claude-opus-4-8", False),
-        ("deepseek/deepseek-v4-pro", False),
+        ("openai/subscription/gpt-5.5", False),  # only the bare sentinel selects it
         ("", False),
         (None, False),
     ],
 )
-def test_is_backend_compatible(model: str | None, compatible: bool) -> None:
-    assert codex.is_backend_compatible(model) is compatible
+def test_is_subscription(model: str | None, expected: bool) -> None:
+    assert codex.is_subscription(model) is expected
+
+
+def test_resolve_and_label() -> None:
+    assert codex.resolve_subscription_model() == codex.DEFAULT_CODEX_MODEL
+    assert codex.auth_mode_label("openai/subscription") == "subscription"
+    assert codex.auth_mode_label("openai/gpt-5.4") == "api_key"
+    assert codex.auth_mode_label(None) == "api_key"
 
 
 def test_account_id_from_jwt() -> None:

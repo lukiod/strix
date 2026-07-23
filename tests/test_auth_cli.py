@@ -97,7 +97,7 @@ def test_login_accepts_provider_aliases(provider: str, monkeypatch: pytest.Monke
 
     monkeypatch.setattr(auth_cli, "_run_oauth_flow", _fake_flow)
     monkeypatch.setattr(codex, "save_record", lambda _record: None)
-    monkeypatch.setattr(auth_cli, "_persist_subscription_config", lambda _model: None)
+    monkeypatch.setattr(auth_cli, "_persist_subscription_config", lambda: None)
 
     assert auth_cli.run_auth(["login", provider]) == 0
     assert reached["flow"] is True

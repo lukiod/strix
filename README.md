@@ -269,17 +269,19 @@ export STRIX_REASONING_EFFORT="high"  # control thinking effort (default: high, 
 
 #### Sign in with a ChatGPT subscription
 
-Instead of a metered API key, you can run Strix on your ChatGPT Plus/Pro subscription:
+Instead of a metered API key, you can run Strix on your ChatGPT Plus/Pro subscription. Set `STRIX_LLM=openai/subscription` — that value is the only switch:
 
 ```bash
-strix auth login chatgpt      # opens your browser to sign in with ChatGPT
+strix auth login chatgpt      # sign in; sets STRIX_LLM=openai/subscription for you
 strix --target ./app-directory
 
 strix auth status             # show the active sign-in
-strix auth logout             # revert to API-key billing
+strix auth logout             # forget the sign-in
 ```
 
-This uses OpenAI's Codex OAuth flow: inference is billed to your ChatGPT plan rather than per token. Strix defaults to `gpt-5.4` here — newer models apply stricter content moderation that interferes with security-testing prompts, so `gpt-5.4` is recommended for scans. You can override the model with `strix auth login chatgpt --model <name>`. Note that the models a ChatGPT plan exposes are a narrower set than the OpenAI API. If the browser can't open, the command falls back to pasting the redirect URL by hand. Tokens are stored in `~/.strix/subscription-auth.json` (`0600`) and refreshed automatically.
+To switch back to a metered API key, just point `STRIX_LLM` at a normal model (e.g. `openai/gpt-5.4`) and set `LLM_API_KEY` — there's no separate mode to toggle.
+
+This uses OpenAI's Codex OAuth flow: inference is billed to your ChatGPT plan rather than per token, and it runs on `gpt-5.4` (newer models apply stricter content moderation that interferes with security-testing prompts). If the browser can't open, the command falls back to pasting the redirect URL by hand. Tokens are stored in `~/.strix/subscription-auth.json` (`0600`) and refreshed automatically.
 
 > [!NOTE]
 > Using a ChatGPT subscription outside OpenAI's own products is not officially supported by OpenAI and may be subject to its terms of use. For unattended/CI runs, prefer an API key.

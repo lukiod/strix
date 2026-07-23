@@ -9,7 +9,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
-AuthMode = Literal["api_key", "subscription"]
 
 _BASE_CONFIG = SettingsConfigDict(
     case_sensitive=False,
@@ -21,11 +20,10 @@ _BASE_CONFIG = SettingsConfigDict(
 class LlmSettings(BaseSettings):
     model_config = _BASE_CONFIG
 
+    # Set to ``openai/subscription`` to run inference on an authenticated ChatGPT
+    # subscription (see ``strix/auth``; ``strix auth login`` sets it); any other
+    # value is a normal API-key model.
     model: str | None = Field(default=None, alias="STRIX_LLM")
-    # "api_key" (default) reads a provider API key from ``api_key`` below.
-    # "subscription" ignores the API key and authenticates with a model
-    # subscription instead (see ``strix/auth``); set by ``strix auth login``.
-    auth_mode: AuthMode = Field(default="api_key", alias="STRIX_AUTH_MODE")
     api_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices("LLM_API_KEY", "OPENAI_API_KEY"),

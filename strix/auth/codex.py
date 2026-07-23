@@ -57,19 +57,16 @@ CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 ORIGINATOR = "codex_cli_rs"
 _ACCOUNT_CLAIM = "https://api.openai.com/auth"
 
-# Models the ChatGPT Codex backend serves to subscription accounts (bare names,
-# no provider prefix). Note this set is NARROWER than the OpenAI API and is
-# account-specific: the ``*-codex`` variants are API-only and are rejected for a
-# ChatGPT account ("model is not supported when using Codex with a ChatGPT
-# account"). These are the general GPT-5.x models a Plus/Pro plan exposes.
-#
-# Default is gpt-5.4: gpt-5.5 and newer apply stricter content moderation that
-# interferes with security-testing prompts, so we prefer 5.4 for scans.
+# Setting STRIX_LLM to this value runs inference on the user's authenticated
+# ChatGPT subscription instead of a metered API key. It's the single switch —
+# there is no separate auth-mode flag.
+SUBSCRIPTION_MODEL = "openai/subscription"
+
+# The actual model sent to the ChatGPT backend for a subscription run. gpt-5.4 is
+# used because gpt-5.5 and newer apply stricter content moderation that
+# interferes with security-testing prompts. (The subscription only exposes the
+# general GPT-5.x models, not the ``*-codex`` API variants.)
 DEFAULT_CODEX_MODEL = "gpt-5.4"
-CODEX_MODELS: tuple[str, ...] = (
-    "gpt-5.4",
-    "gpt-5.5",
-)
 
 _TOKEN_TIMEOUT = 30
 # Refresh a little before the token actually expires so a request never goes out
@@ -394,57 +391,56 @@ def build_openai_client() -> AsyncOpenAI:
     )
 
 
-def is_backend_compatible(model_name: str | None) -> bool:
-    """True if ``model_name`` could be served by the ChatGPT subscription backend.
+_subscription_client: AsyncOpenAI | None = None
 
-    A bare name or an ``openai/`` prefix is plausible (the backend validates the
-    exact name against the account). Any other provider prefix — ``anthropic/``,
-    ``deepseek/``, ``vertex_ai/``, … — never can be, so it's treated as
-    incompatible.
+
+def get_subscription_client() -> AsyncOpenAI:
+    """Return the process-wide subscription client, building it once.
+
+    One client is reused across every agent in a run: its per-request auth hook
+    refreshes the token itself, so there's no reason to rebuild it, and building
+    one per agent would leak httpx clients.
     """
-    name = (model_name or "").strip()
-    if not name:
-        return False
-    if "/" not in name:
-        return True
-    return name.split("/", 1)[0].lower() == "openai"
+    global _subscription_client  # noqa: PLW0603
+    if _subscription_client is None:
+        _subscription_client = build_openai_client()
+    return _subscription_client
 
 
-def normalize_model(model_name: str | None) -> str:
-    """Return the bare model name to send to the ChatGPT backend.
+def is_subscription(model_name: str | None) -> bool:
+    """Whether ``STRIX_LLM`` selects the authenticated ChatGPT subscription."""
+    return (model_name or "").strip().lower() == SUBSCRIPTION_MODEL
 
-    ``openai/gpt-5.4`` → ``gpt-5.4``. A configured-but-unlisted OpenAI/bare name
-    is passed through as-is (availability is account-specific and the backend is
-    the authority). An empty value, or a model from another provider that a
-    ChatGPT subscription can't serve, falls back to the default so a stray
-    ``STRIX_LLM`` never sends an impossible name to the backend. See
-    ``is_backend_compatible``.
-    """
-    name = (model_name or "").strip()
-    if not is_backend_compatible(name):
-        return DEFAULT_CODEX_MODEL
-    if "/" in name:
-        name = name.rsplit("/", 1)[-1]
-    return name
+
+def resolve_subscription_model() -> str:
+    """The concrete model sent to the ChatGPT backend for a subscription run."""
+    return DEFAULT_CODEX_MODEL
+
+
+def auth_mode_label(model_name: str | None) -> str:
+    """How a run authenticated, for recording in run.json / telemetry / the viewer."""
+    return "subscription" if is_subscription(model_name) else "api_key"
 
 
 __all__ = [
-    "CODEX_MODELS",
     "DEFAULT_CODEX_MODEL",
     "PROVIDER",
+    "SUBSCRIPTION_MODEL",
     "CodexAuthError",
+    "auth_mode_label",
     "build_authorize_url",
     "build_openai_client",
     "create_state",
     "exchange_code",
     "generate_pkce",
+    "get_subscription_client",
     "get_valid_token",
     "is_authenticated",
-    "is_backend_compatible",
+    "is_subscription",
     "logout",
-    "normalize_model",
     "parse_redirect_input",
     "read_record",
     "refresh_tokens",
+    "resolve_subscription_model",
     "save_record",
 ]
